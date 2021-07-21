@@ -1,17 +1,18 @@
-**Development on droppy has ceased because I don't have enough time or motivation to properly support it and because of its outdated technology stack, it became exceedingly boring to work.**
+Copied from [here](https://github.com/cryopie/droppy). Cloned and fixed up Dockerfile.
 
 <p align="center">
-  <img src="https://cdn.rawgit.com/silverwind/droppy/master/client/images/readme-logo.svg"/>
+  <img src="https://cdn.rawgit.com/cryopie/droppy/master/client/images/readme-logo.svg"/>
 </p>
 <p align="center">
   <a href="https://www.npmjs.org/package/droppy"><img src="https://img.shields.io/npm/v/droppy.svg"></a>
-  <a href="https://raw.githubusercontent.com/silverwind/droppy/master/LICENSE"><img src="https://img.shields.io/badge/licence-bsd-blue.svg"></a>
-  <a href="https://www.npmjs.org/package/droppy"><img src="https://img.shields.io/npm/dm/droppy.svg"></a>
+  <a href="https://raw.githubusercontent.com/cryopie/droppy/master/LICENSE"><img src="https://img.shields.io/badge/licence-bsd-blue.svg"></a>
 </p>
 
-**droppy** is a self-hosted file storage server with a web interface and capabilities to edit files and view media directly in the browser. It is particularly well-suited to be run on low-end hardware like the Raspberry Pi.
+**droppy** is a self-hosted file storage server with a web interface and capabilities to edit files and view media directly in the browser.
+It is particularly well-suited to be run on low-end hardware like the Raspberry Pi.
 
 ## Features
+
 * Responsive, scalable HTML5 interface
 * Realtime updates of file system changes
 * Directory and Multi-File upload
@@ -29,6 +30,7 @@
 * Docker images available for x86-64, ARMv6, ARMv7 and ARMv8
 
 ## General Information
+
 Two directories will be used, one for configuration and one for the actual files:
 
 - `config`: defaults to `~/.droppy/config`, override with `-c /some/dir`
@@ -37,7 +39,9 @@ Two directories will be used, one for configuration and one for the actual files
 droppy maintains an in-memory representation of the `files` directory. If you're on slow storage and/or serving 100k or more files, the initial indexing on startup will likely take some time.
 
 ## Installation
-### Local Installation :package:
+
+### Local Installation
+
 With [`Node.js`](https://nodejs.org) >= 12.10.0 installed, run:
 
 ```sh
@@ -47,43 +51,70 @@ $ droppy start -c /srv/droppy/config -f /srv/droppy/files
 
 To make droppy run in the background, you can use the `--daemon` option, thought it is adviced that you install it as a persistent service in your system. For Linux, see these guides:
 
-- [Systemd-based distributions](https://github.com/silverwind/droppy/wiki/Systemd-Installation)
-- [Debian (Pre-Jessie)](https://github.com/silverwind/droppy/wiki/Debian-Installation-(Pre-Jessie))
-- [Nginx reverse proxy](https://github.com/silverwind/droppy/wiki/Nginx-reverse-proxy)
-- [Apache reverse proxy](https://github.com/silverwind/droppy/wiki/Apache-reverse-proxy)
+- [Systemd-based distributions](https://github.com/cryopie/droppy/wiki/Systemd-Installation)
+- [Debian (Pre-Jessie)](https://github.com/cryopie/droppy/wiki/Debian-Installation-(Pre-Jessie))
+- [Nginx reverse proxy](https://github.com/cryopie/droppy/wiki/Nginx-reverse-proxy)
+- [Apache reverse proxy](https://github.com/cryopie/droppy/wiki/Apache-reverse-proxy)
 
-### Docker installation :whale:
+### Docker
 
-The [`silverwind/droppy`](https://hub.docker.com/r/silverwind/droppy/) multi-arch images supports `amd64`, `arm64`, `arm/v7` and `arm/v6` architectures. To pull and run, use:
+In `droppy/docker-compose.yml`:
 
-```sh
-$ docker run --name droppy -p 127.0.0.1:8989:8989 silverwind/droppy
+```yml
+version: '2'
+services:
+  droppy:
+    container_name: droppy
+    image: droppy
+    ports:
+      - '127.0.0.1:8219:8989'
+    volumes:
+      - ./config:/config
+      - ./files:/files
+    restart: always
 ```
 
-This method uses automatic volumes for `/config` and `/files` which can be overridden through `-v /srv/droppy/config:/config` and `-v /srv/droppy/files:/files`. If you're using existing files, it's advisable to use `-e UID=1000 -e GID=1000` to get new files written with correct ownership.
-
-To update a docker installation, run
+Build, run, and check
 
 ```sh
-$ docker pull silverwind/droppy
-$ docker stop droppy && docker rm droppy
-$ docker run --name droppy -p 127.0.0.1:8989:8989 silverwind/droppy
+$ cd droppy
+$ docker build -t droppy .
+$ docker-compose up -d
+$ docker-compose logs -f
 ```
 
-### docker-compose
-Alternatively, you can use the example [`docker-compose.yml`](https://github.com/silverwind/droppy/blob/master/examples/docker-compose.yml):
+### Nginx
 
-```sh
-$ curl -O https://raw.githubusercontent.com/silverwind/droppy/master/examples/docker-compose.yml
-$ docker-compose up
+Partial config file:
+
 ```
-This example `docker-compose.yml` uses the subdirectories `config` and `files` of the current working directory for storing data.
+server {
+        listen 443 ssl http2;
+        server_name droppy.example.com;
 
-### Caddy
+        client_max_body_size 1G;
+        ssl_certificate           /etc/letsencrypt/live/droppy.example.com/fullchain.pem;
+        ssl_certificate_key       /etc/letsencrypt/live/droppy.example.com/privkey.pem;
 
-See the example [Caddyfile](examples/Caddyfile).
+        auth_basic               "Restricted Access";
+        auth_basic_user_file     "passwords/droppy.htpaswd";
+
+        location / {
+            proxy_pass           http://localhost:8219;
+            proxy_http_version   1.1;
+            proxy_set_header     Connection                "Upgrade";
+            proxy_set_header     Upgrade                   $http_upgrade;
+            proxy_set_header     Host                      $http_host;
+            proxy_set_header     X-Real-IP                 $remote_addr;
+            proxy_set_header     X-Forwarded-For           $proxy_add_x_forwarded_for;
+            proxy_set_header     X-Forwarded-Proto         "https";
+            proxy_buffering      off;
+        }
+}
+```
 
 ## Configuration
+
 By default, the server listens on all IPv4 and IPv6 interfaces on port 8989. On first startup, a prompt to create login data for the first account will appear. Once it's created, login credentials are enforced. Additional accounts can be created in the options interface or the command line. Configuration is done in `config/config.json`, which is created with these defaults:
 
 ```javascript
@@ -113,6 +144,7 @@ By default, the server listens on all IPv4 and IPv6 interfaces on port 8989. On 
 ```
 
 ## Options
+
 - `listeners` *Array* - Defines on which network interfaces, port and protocols the server will listen. See [listener options](#listener-options) below. `listeners` has no effect when droppy is used as a module. The default listens on HTTP port 8989 on all interfaces and protocols.
 - `public` *boolean* - When enabled, no user authentication is performed. Default: `false`.
 - `timestamps` *boolean* - When enabled, adds timestamps to log output. Default: `true`.
@@ -132,6 +164,7 @@ By default, the server listens on all IPv4 and IPv6 interfaces on port 8989. On 
 - `headers` *Object*: A object with key-value pairs of custom HTTP headers to set on all responses, for example `{"Access-Control-Allow-Origin": "*"}`. Default: `{}`.
 
 <a name="listener-options"></a>
+
 ### Listener Options
 
 `listeners` defines on which network interfaces, ports and protocol(s) the server will listen. For example:
@@ -171,6 +204,7 @@ For TLS the following additional options are available. Paths can be given relat
 - `key` *string* - Path to PEM-encoded TLS private key file not encrypted with a passphrase. Required.
 
 ## Downloading from the command line
+
 To download shared links with `curl` and `wget` to the correct filename:
 ````sh
 $ curl -OJ url
@@ -178,12 +212,15 @@ $ wget --content-disposition url
 ````
 
 # Development
+
 To start a live-reloading dev server:
+
 ````sh
-$ git clone https://github.com/silverwind/droppy && cd droppy
+$ git clone https://github.com/cryopie/droppy && cd droppy
 $ npm i
 $ node droppy start --dev
 ````
-The [Makefile](https://github.com/silverwind/droppy/blob/master/Makefile) has a few tasks for updating dependencies, pushing docker images, see the comment above for dependencies of those tasks.
 
-© [silverwind](https://github.com/silverwind), distributed under BSD licence.
+The [Makefile](https://github.com/cryopie/droppy/blob/master/Makefile) has a few tasks for updating dependencies, pushing docker images, see the comment above for dependencies of those tasks.
+
+© [cryopie](https://github.com/cryopie), distributed under BSD licence.

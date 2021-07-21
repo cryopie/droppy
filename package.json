@@ -3,7 +3,7 @@
   "version": "12.2.0",
   "description": "Self-hosted file storage",
   "author": "silverwind <me@silverwind.io>",
-  "repository": "silverwind/droppy",
+  "repository": "cryopie/droppy",
   "license": "BSD-2-Clause",
   "preferGlobal": true,
   "bin": "./droppy.js",
